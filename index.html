@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head><link rel="icon" href="favicon.ico" sizes="any"><link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png"><link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png"><link rel="icon" type="image/png" sizes="48x48" href="favicon-48x48.png"><link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png"><link rel="manifest" href="site.webmanifest"><meta name="theme-color" content="#C75F71">
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Sign in · RankRise</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body class="login-page">
+  <main class="login-shell">
+    <div class="login-backdrop" aria-hidden="true"></div>
+    <section class="login-card glass">
+      <div class="login-heading-row">
+        <div class="login-brand">
+          <img class="brand-logo" src="assets/images/nadaf-creates-logo.png" alt="Nadaf Creates">
+          <span class="login-brand-name">RankRise</span>
+        </div>
+        <h1>Welcome Back<span class="accent-dot">.</span></h1>
+      </div>
+      <form id="loginForm">
+        <label for="studentId">Student ID</label>
+        <input id="studentId" name="studentId" autocomplete="username" placeholder="Enter your student ID" required>
+        <label for="password">Password</label>
+        <div class="password-wrap"><input id="password" name="password" type="password" autocomplete="current-password" placeholder="Enter your password" required><button class="eye-button" type="button" id="togglePassword" aria-label="Show password" aria-pressed="false"><svg class="eye-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
+        <button class="button primary full" type="submit" id="loginButton">Sign in <span aria-hidden="true">→</span></button>
+        <p id="loginMessage" class="form-message" role="status"></p>
+      </form>
+      <p class="login-foot">Private student access · Accounts provided by your admin</p><p class="login-powered">Powered By Nadaf</p>
+    </section>
+    <div class="login-brandline"><img class="brand-mark logo-image" src="assets/images/nadaf-creates-logo.png" alt="Nadaf Creates"><span>Powered By Nadaf</span></div>
+  </main>
+  <div id="bootScreen" class="boot-screen"><span class="spinner"></span><span>Opening your study space…</span></div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="assets/js/supabase-config.js"></script><script src="assets/js/core.js"></script><script src="assets/js/auth.js"></script>
+</body></html>
