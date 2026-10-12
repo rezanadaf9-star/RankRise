@@ -43,7 +43,25 @@
       const profile=await this.profile();
       if(!profile) return null;
       document.querySelectorAll("#studentName,#topStudentName,#profileMenuName").forEach(e=>e.textContent=profile.full_name||"Student");
-      document.querySelectorAll("#avatarInitials").forEach(e=>e.textContent=this.initials(profile.full_name));
+      document.querySelectorAll("#avatarInitials").forEach(e=>{
+        const initials=this.initials(profile.full_name);
+        const photoUrl=typeof profile.photo_url==="string" ? profile.photo_url.trim() : "";
+        e.replaceChildren();
+        if(photoUrl){
+          const img=document.createElement("img");
+          img.src=photoUrl;
+          img.alt=profile.full_name ? `${profile.full_name} profile photo` : "Student profile photo";
+          img.className="profile-avatar-image";
+          img.loading="eager";
+          img.referrerPolicy="no-referrer";
+          img.onerror=()=>{ e.replaceChildren(document.createTextNode(initials)); e.classList.remove("has-profile-photo"); };
+          e.classList.add("has-profile-photo");
+          e.appendChild(img);
+        } else {
+          e.classList.remove("has-profile-photo");
+          e.textContent=initials;
+        }
+      });
       document.querySelectorAll("[data-logout]").forEach(e=>e.addEventListener("click",()=>this.signOut()));
       const menu=document.getElementById("sidebar"),scrim=document.getElementById("menuScrim");
       document.getElementById("menuToggle")?.addEventListener("click",()=>{menu?.classList.toggle("open");scrim?.classList.toggle("show");});

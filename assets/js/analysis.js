@@ -1,14 +1,98 @@
-document.addEventListener("DOMContentLoaded",async()=>{
- const p=await NC.guard();if(!p)return;const list=document.getElementById("attemptList"),review=document.getElementById("attemptReview");
- let attempts=await NC.rows("quiz_attempts",q=>q.eq("student_id",p.id).eq("status","submitted").order("submitted_at",{ascending:false}));
- const stats=document.getElementById("analysisStats");if(attempts.length){const total=attempts.reduce((s,a)=>s+Number(a.score||0),0);stats.innerHTML=`<div class="stat-card"><span>Quizzes taken</span><strong>${attempts.length}</strong></div><div class="stat-card"><span>Average score</span><strong>${Math.round(total/attempts.length*10)/10}</strong></div><div class="stat-card"><span>Accuracy</span><strong>${Math.round(attempts.reduce((s,a)=>s+Number(a.correct_count||0),0)/Math.max(1,attempts.reduce((s,a)=>s+Number(a.correct_count||0)+Number(a.incorrect_count||0),0))*100)}%</strong></div>`;}
- const local=Object.keys(localStorage).filter(k=>k.startsWith("nc-result-")).map(k=>{try{return JSON.parse(localStorage.getItem(k))}catch{return null}}).filter(Boolean);
- if(!attempts.length&&local.length){list.innerHTML=local.map((a,i)=>`<button class="attempt-row" data-local="${i}"><span class="attempt-icon">✓</span><span><strong>${NC.escape(a.quiz_title||"Practice quiz")}</strong><small>${new Date(a.submitted_at||Date.now()).toLocaleDateString()} · ${a.correct_count||0} correct</small></span><b>${a.score??0} pts</b></button>`).join("");}
- else if(attempts.length){list.innerHTML=attempts.map(a=>`<button class="attempt-row" data-attempt="${a.id}"><span class="attempt-icon">✓</span><span><strong>${NC.escape(a.quiz_title||"Completed quiz")}</strong><small>${new Date(a.submitted_at||a.created_at).toLocaleDateString()} · ${a.correct_count||0} correct · ${a.incorrect_count||0} incorrect</small></span><b>${a.score??0} pts</b></button>`).join("");}
- else list.innerHTML='<div class="empty-state">No completed attempts yet. Take a quiz to start your history.</div>';
- function show(a,title="Attempt review"){review.classList.remove("hidden");document.getElementById("reviewTitle").textContent=title;document.getElementById("reviewSummary").textContent=`Score: ${a.score??0} · Correct: ${a.correct_count??0} · Incorrect: ${a.incorrect_count??0} · Unanswered: ${a.unanswered_count??0} · Time: ${Math.floor((a.elapsed_seconds||0)/60)}m ${(a.elapsed_seconds||0)%60}s`;const arr=Array.isArray(a.answers)?a.answers:[];document.getElementById("reviewQuestions").innerHTML=arr.map((q,i)=>`<article class="review-question"><div class="review-q-label">QUESTION ${i+1} · <span class="${q.is_correct?"good-text":q.selected_answer==null?"muted":"bad-text"}">${q.is_correct?"Correct":q.selected_answer==null?"Unanswered":"Incorrect"}</span></div><h4>${NC.escape(q.question_text||q.question||"Question")}</h4><p><strong>Your answer:</strong> ${NC.escape(q.selected_answer??"Not answered")}</p><p><strong>Correct answer:</strong> ${NC.escape(q.correct_answer??"—")}</p><p class="muted">${NC.escape(q.explanation||"No explanation provided for this question.")}</p></article>`).join("")||'<p class="muted">Detailed answer snapshots are not available for this attempt.</p>';review.scrollIntoView({behavior:"smooth"});}
- list.querySelectorAll("[data-attempt]").forEach(b=>b.addEventListener("click",()=>{const a=attempts.find(x=>x.id===b.dataset.attempt);if(a)show(a,a.quiz_title||"Attempt review");}));
- list.querySelectorAll("[data-local]").forEach(b=>b.addEventListener("click",()=>show(local[Number(b.dataset.local)],local[Number(b.dataset.local)].quiz_title)));
- document.getElementById("closeReview").addEventListener("click",()=>review.classList.add("hidden"));
- const id=new URLSearchParams(location.search).get("attempt");if(id){const a=attempts.find(x=>x.id===id)||local.find(x=>x.id===id)||local[0];if(a)show(a,a.quiz_title||"Quiz result");}
+document.addEventListener("DOMContentLoaded", async () => {
+  const p = await NC.guard();
+  if (!p) return;
+  const list = document.getElementById("attemptList"),
+    review = document.getElementById("attemptReview");
+  let attempts = await NC.rows("quiz_attempts", (q) =>
+    q
+      .eq("student_id", p.id)
+      .eq("status", "submitted")
+      .order("submitted_at", { ascending: false }),
+  );
+  const stats = document.getElementById("analysisStats");
+  if (attempts.length) {
+    const total = attempts.reduce((s, a) => s + Number(a.score || 0), 0);
+    stats.innerHTML = `<div class="stat-card"><span>Quizzes taken</span><strong>${attempts.length}</strong></div><div class="stat-card"><span>Average score</span><strong>${Math.round((total / attempts.length) * 10) / 10}</strong></div><div class="stat-card"><span>Accuracy</span><strong>${Math.round(
+      (attempts.reduce((s, a) => s + Number(a.correct_count || 0), 0) /
+        Math.max(
+          1,
+          attempts.reduce(
+            (s, a) =>
+              s + Number(a.correct_count || 0) + Number(a.incorrect_count || 0),
+            0,
+          ),
+        )) *
+        100,
+    )}%</strong></div>`;
+  }
+  const local = Object.keys(localStorage)
+    .filter((k) => k.startsWith("nc-result-"))
+    .map((k) => {
+      try {
+        return JSON.parse(localStorage.getItem(k));
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean);
+  if (!attempts.length && local.length) {
+    list.innerHTML = local
+      .map(
+        (a, i) =>
+          `<button class="attempt-row" data-local="${i}"><span class="attempt-icon">✓</span><span><strong>${NC.escape(a.quiz_title || "Practice quiz")}</strong><small>${new Date(a.submitted_at || Date.now()).toLocaleDateString()} · ${a.correct_count || 0} correct</small></span><b>${a.score ?? 0} pts</b></button>`,
+      )
+      .join("");
+  } else if (attempts.length) {
+    list.innerHTML = attempts
+      .map(
+        (a) =>
+          `<button class="attempt-row" data-attempt="${a.id}"><span class="attempt-icon">✓</span><span><strong>${NC.escape(a.quiz_title || "Completed quiz")}</strong><small>${new Date(a.submitted_at || a.created_at).toLocaleDateString()} · ${a.correct_count || 0} correct · ${a.incorrect_count || 0} incorrect</small></span><b>${a.score ?? 0} pts</b></button>`,
+      )
+      .join("");
+  } else
+    list.innerHTML =
+      '<div class="empty-state">No completed attempts yet. Take a quiz to start your history.</div>';
+  function show(a, title = "Attempt review") {
+    review.classList.remove("hidden");
+    document.getElementById("reviewTitle").textContent = title;
+    document.getElementById("reviewSummary").textContent =
+      `Score: ${a.score ?? 0} · Correct: ${a.correct_count ?? 0} · Incorrect: ${a.incorrect_count ?? 0} · Unanswered: ${a.unanswered_count ?? 0} · Time: ${Math.floor((a.elapsed_seconds || 0) / 60)}m ${(a.elapsed_seconds || 0) % 60}s`;
+    const arr = Array.isArray(a.answers) ? a.answers : [];
+    document.getElementById("reviewQuestions").innerHTML =
+      arr
+        .map(
+          (q, i) =>
+            `<article class="review-question"><div class="review-q-label">QUESTION ${i + 1} · <span class="${q.is_correct ? "good-text" : q.selected_answer == null ? "muted" : "bad-text"}">${q.is_correct ? "Correct" : q.selected_answer == null ? "Unanswered" : "Incorrect"}</span></div><h4>${NC.escape(q.question_text || q.question || "Question")}</h4><p><strong>Your answer:</strong> ${NC.escape(q.selected_answer ?? "Not answered")}</p><p><strong>Correct answer:</strong> ${NC.escape(q.correct_answer ?? "—")}</p><p class="muted">${NC.escape(q.explanation || "No explanation provided for this question.")}</p></article>`,
+        )
+        .join("") ||
+      '<p class="muted">Detailed answer snapshots are not available for this attempt.</p>';
+    review.scrollIntoView({ behavior: "smooth" });
+  }
+  list.querySelectorAll("[data-attempt]").forEach((b) =>
+    b.addEventListener("click", () => {
+      const a = attempts.find((x) => x.id === b.dataset.attempt);
+      if (a) show(a, a.quiz_title || "Attempt review");
+    }),
+  );
+  list
+    .querySelectorAll("[data-local]")
+    .forEach((b) =>
+      b.addEventListener("click", () =>
+        show(
+          local[Number(b.dataset.local)],
+          local[Number(b.dataset.local)].quiz_title,
+        ),
+      ),
+    );
+  document
+    .getElementById("closeReview")
+    .addEventListener("click", () => review.classList.add("hidden"));
+  const id = new URLSearchParams(location.search).get("attempt");
+  if (id) {
+    const a =
+      attempts.find((x) => x.id === id) ||
+      local.find((x) => x.id === id) ||
+      local[0];
+    if (a) show(a, a.quiz_title || "Quiz result");
+  }
 });

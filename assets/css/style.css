@@ -147,3 +147,6 @@ body{background:var(--canvas);color:var(--ink)}
 .admin-shell .topbar .admin-logout-button{margin-left:auto;flex:none;background:#FFF7F3;border:1px solid #FFF7F3;color:#8B3549;box-shadow:none;}
 .admin-shell .topbar .admin-logout-button:hover{background:#8B3549;border-color:#8B3549;color:#fff;}
 .admin-shell .topbar .brand-mini .logo-image{background:transparent;box-shadow:none;border:0;object-fit:contain;}
+
+/* Student profile photo avatar */
+.profile-chip>span#avatarInitials{overflow:hidden;flex:0 0 29px;padding:0;position:relative}.profile-chip>span#avatarInitials.has-profile-photo{background:#f0efff}.profile-avatar-image{display:block;width:100%;height:100%;object-fit:cover;border-radius:inherit}
