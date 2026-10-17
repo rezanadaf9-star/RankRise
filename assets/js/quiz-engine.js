@@ -62,23 +62,34 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("positiveMarks").textContent = quiz.positive_marks ?? 1;
   $("negativeMarks").textContent = quiz.negative_marks ?? 0;
   remaining = (quiz.duration_minutes || 15) * 60;
+  // A student gets exactly one attempt per quiz. Resume an existing in-progress
+  // attempt, but never create a second attempt after submission/abandonment.
   if (window.sb && quizId) {
-    const { data: a } = await window.sb
+    const { data: existing, error: existingError } = await window.sb
       .from("quiz_attempts")
       .select("*")
       .eq("quiz_id", quizId)
       .eq("student_id", p.id)
-      .eq("status", "in_progress")
       .maybeSingle();
-    if (a) {
-      attemptId = a.id;
-      answers = a.answers || {};
+    if (existingError) {
+      NC.toast("Could not verify your quiz attempt. Please try again.");
+      location.href = "quizzes.html";
+      return;
+    }
+    if (existing && existing.status !== "in_progress") {
+      NC.toast("You have already used your attempt for this quiz.");
+      location.href = "quizzes.html";
+      return;
+    }
+    if (existing) {
+      attemptId = existing.id;
+      answers = existing.answers || {};
       remaining = Math.max(
         0,
         Math.min(
           remaining,
           Math.floor(
-            (new Date(a.started_at).getTime() +
+            (new Date(existing.started_at).getTime() +
               (quiz.duration_minutes || 15) * 60000 -
               Date.now()) /
               1000,
@@ -123,7 +134,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     );
   }
   if (window.sb && quizId && !attemptId) {
-    const { data: a } = await window.sb
+    const { data: a, error: createAttemptError } = await window.sb
       .from("quiz_attempts")
       .insert({
         quiz_id: quizId,
@@ -134,7 +145,13 @@ document.addEventListener("DOMContentLoaded", async () => {
       })
       .select()
       .single();
-    if (a) attemptId = a.id;
+    if (createAttemptError || !a) {
+      // The database unique index also blocks two tabs racing to start a quiz.
+      NC.toast("An attempt already exists for this quiz, or the attempt could not be started.");
+      location.href = "quizzes.html";
+      return;
+    }
+    attemptId = a.id;
   }
   function render() {
     if (!questions.length) {
