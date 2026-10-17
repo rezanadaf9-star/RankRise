@@ -40,10 +40,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     list.innerHTML = data
       .filter((s) => (s.rank || data.indexOf(s) + 1) > 3)
       .slice(0, 12)
-      .map(
-        (s, i) =>
-          `<div class="rank-row ${s.id === p.id ? "is-you" : ""}"><span class="rank-number">${s.rank || i + 4}</span><span class="rank-avatar">${NC.escape(NC.initials(s.full_name))}</span><span class="rank-name">${NC.escape(s.full_name || "Student")}${s.id === p.id ? " <em>You</em>" : ""}</span><strong>${Math.round(s.score || 0)}</strong></div>`,
-      )
+      .map((s, i) => {
+        const initials = NC.escape(NC.initials(s.full_name));
+        const photoUrl = typeof s.photo_url === "string" ? s.photo_url.trim() : "";
+        const avatar = photoUrl
+          ? `<img src="${NC.escape(photoUrl)}" alt="${NC.escape(s.full_name || "Student")} profile photo" loading="lazy" onerror="this.replaceWith(document.createTextNode('${initials}'))">`
+          : initials;
+        return `<div class="rank-row ${s.id === p.id ? "is-you" : ""}"><span class="rank-number">${s.rank || i + 4}</span><span class="rank-avatar">${avatar}</span><span class="rank-name">${NC.escape(s.full_name || "Student")}${s.id === p.id ? " <em>You</em>" : ""}</span><strong>${Math.round(s.score || 0)}</strong></div>`;
+      })
       .join("");
   }
   await Promise.all([
