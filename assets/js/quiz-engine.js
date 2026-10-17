@@ -62,40 +62,47 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("positiveMarks").textContent = quiz.positive_marks ?? 1;
   $("negativeMarks").textContent = quiz.negative_marks ?? 0;
   remaining = (quiz.duration_minutes || 15) * 60;
-  // A student gets exactly one attempt per quiz. Resume an existing in-progress
-  // attempt, but never create a second attempt after submission/abandonment.
+  // One attempt per student per quiz: resume only an in-progress attempt.
+  // If already submitted (or abandoned), never create a new attempt.
   if (window.sb && quizId) {
-    const { data: existing, error: existingError } = await window.sb
+    const { data: existingAttempts, error: existingError } = await window.sb
       .from("quiz_attempts")
       .select("*")
       .eq("quiz_id", quizId)
       .eq("student_id", p.id)
-      .maybeSingle();
+      .order("started_at", { ascending: false });
+
     if (existingError) {
       NC.toast("Could not verify your quiz attempt. Please try again.");
-      location.href = "quizzes.html";
+      location.replace("quizzes.html");
       return;
     }
-    if (existing && existing.status !== "in_progress") {
-      NC.toast("You have already used your attempt for this quiz.");
-      location.href = "quizzes.html";
+
+    const priorSubmitted = (existingAttempts || []).find(a => a.status === "submitted");
+    if (priorSubmitted) {
+      NC.toast("You have already attempted this quiz. A second attempt is not allowed.");
+      location.replace(`analysis.html?attempt=${encodeURIComponent(priorSubmitted.id)}`);
       return;
     }
-    if (existing) {
-      attemptId = existing.id;
-      answers = existing.answers || {};
+
+    const priorAttempt = (existingAttempts || []).find(a => a.status === "in_progress");
+    if (priorAttempt) {
+      attemptId = priorAttempt.id;
+      answers = priorAttempt.answers || {};
       remaining = Math.max(
         0,
         Math.min(
           remaining,
           Math.floor(
-            (new Date(existing.started_at).getTime() +
-              (quiz.duration_minutes || 15) * 60000 -
-              Date.now()) /
-              1000,
+            (new Date(priorAttempt.started_at).getTime() +
+              (quiz.duration_minutes || 15) * 60000 - Date.now()) / 1000,
           ),
         ),
       );
+    } else if ((existingAttempts || []).some(a => a.status === "abandoned")) {
+      NC.toast("You have already used your attempt for this quiz.");
+      location.replace("quizzes.html");
+      return;
     }
   }
   function saveLocal() {
@@ -146,12 +153,30 @@ document.addEventListener("DOMContentLoaded", async () => {
       .select()
       .single();
     if (createAttemptError || !a) {
-      // The database unique index also blocks two tabs racing to start a quiz.
-      NC.toast("An attempt already exists for this quiz, or the attempt could not be started.");
-      location.href = "quizzes.html";
-      return;
+      // A concurrent tab/device may have created the attempt first.
+      const { data: racedAttempts } = await window.sb
+        .from("quiz_attempts")
+        .select("*")
+        .eq("quiz_id", quizId)
+        .eq("student_id", p.id)
+        .order("started_at", { ascending: false });
+      const racedSubmitted = (racedAttempts || []).find(x => x.status === "submitted");
+      const racedInProgress = (racedAttempts || []).find(x => x.status === "in_progress");
+      if (racedSubmitted) {
+        location.replace(`analysis.html?attempt=${encodeURIComponent(racedSubmitted.id)}`);
+        return;
+      }
+      if (racedInProgress) {
+        attemptId = racedInProgress.id;
+        answers = racedInProgress.answers || {};
+      } else {
+        NC.toast("Could not start this quiz. Please return to the quiz list and try again.");
+        location.replace("quizzes.html");
+        return;
+      }
+    } else {
+      attemptId = a.id;
     }
-    attemptId = a.id;
   }
   function render() {
     if (!questions.length) {

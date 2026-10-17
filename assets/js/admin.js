@@ -355,38 +355,57 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
     }
     if (tab === "marks") {
-      panel.innerHTML = `<div class="leaderboard-card"><h2>Publish academic marks</h2><p class="muted">Enter one subject result per student. Rank calculation can be added after your exam/ranking rules are confirmed.</p><form id="marksForm" class="admin-form"><label>Exam name<input name="exam_name" required placeholder="Pre-board Examination"></label><div class="form-grid"><label>Class<select name="class_name"><option value="10">Class 10</option><option value="12">Class 12</option></select></label><label>Subject<select name="subject">${NC.subjects.map((s) => `<option>${s.name}</option>`).join("")}</select></label></div><label>Student<select name="student_id" id="marksStudent" required></select></label><div class="form-grid"><label>Marks obtained<input name="marks_obtained" type="number" min="0" step="0.5" required></label><label>Full marks<input name="full_marks" type="number" min="1" step="0.5" required></label></div><label>Exam date<input name="exam_date" type="date"></label><label class="check-label"><input type="checkbox" name="published"> Publish result</label><button class="button primary">Save marks</button><p id="marksMessage" class="form-message"></p></form></div>`;
-      const students = await NC.rows("profiles", (q) =>
-        q.eq("role", "student"),
-      );
-      document.getElementById("marksStudent").innerHTML = students
-        .map(
-          (s) =>
-            `<option value="${s.id}">${NC.escape(s.full_name)} · ${NC.escape(s.student_id || "")}</option>`,
-        )
-        .join("");
-      document
-        .getElementById("marksForm")
-        .addEventListener("submit", async (e) => {
-          e.preventDefault();
-          const fd = new FormData(e.currentTarget);
-          const { error } = await window.sb
-            .from("academic_marks")
-            .insert({
-              exam_name: fd.get("exam_name"),
-              class_name: fd.get("class_name"),
-              subject: fd.get("subject"),
-              student_id: fd.get("student_id"),
-              marks_obtained: Number(fd.get("marks_obtained")),
-              full_marks: Number(fd.get("full_marks")),
-              exam_date: fd.get("exam_date") || null,
-              published: fd.get("published") === "on",
-              entered_by: p.id,
-            });
-          document.getElementById("marksMessage").textContent = error
-            ? error.message
-            : "Marks saved.";
-        });
+      panel.innerHTML = `<div class="leaderboard-card"><h2>Academic marks</h2><p class="muted">Save one record per exam, class, student and subject. Saving never publishes automatically. Use Publish Results to publish all saved subjects for every student in the selected exam and class.</p><form id="marksForm" class="admin-form"><label>Exam name<input name="exam_name" required placeholder="Half Yearly Examination"></label><div class="form-grid"><label>Class<select name="class_name"><option value="10">Class 10</option><option value="12">Class 12</option></select></label><label>Subject<select name="subject">${NC.subjects.map((s) => `<option>${s.name}</option>`).join("")}</select></label></div><label>Student<select name="student_id" id="marksStudent" required></select></label><div class="form-grid"><label>Marks obtained<input name="marks_obtained" type="number" min="0" step="0.5" required></label><label>Full marks<input name="full_marks" type="number" min="1" step="0.5" value="100" required></label></div><label>Exam date<input name="exam_date" type="date"></label><button class="button primary" type="submit">Save / Update Subject Marks</button><p id="marksMessage" class="form-message" aria-live="polite"></p></form></div><div class="leaderboard-card"><div class="section-heading"><div><h2>Saved results</h2><p class="muted">Records for the selected examination and class.</p></div><button id="publishAllMarks" class="button primary" type="button">Publish Results</button></div><div id="savedMarksMessage" class="form-message" aria-live="polite"></div><div id="savedMarksList" class="attempt-list">Loading saved results…</div></div>`;
+      const students = await NC.rows("profiles", (q) => q.eq("role", "student"));
+      const studentSelect = document.getElementById("marksStudent");
+      studentSelect.innerHTML = students.map((s) => `<option value="${s.id}" data-class="${NC.escape(String(s.class_name || "10"))}">${NC.escape(s.full_name)} · ${NC.escape(s.student_id || "")}</option>`).join("");
+      const form = document.getElementById("marksForm");
+      const savedList = document.getElementById("savedMarksList");
+      const message = document.getElementById("savedMarksMessage");
+      const currentKey = () => ({ exam_name: form.elements.exam_name.value.trim(), class_name: form.elements.class_name.value });
+      async function refreshSaved() {
+        const key = currentKey();
+        if (!key.exam_name) { savedList.textContent = "Enter an exam name to view saved results."; return; }
+        savedList.textContent = "Loading…";
+        const { data, error } = await window.sb.from("academic_marks").select("id,exam_name,class_name,subject,student_id,marks_obtained,full_marks,exam_date,published").eq("exam_name", key.exam_name).eq("class_name", key.class_name).order("subject");
+        if (error) { savedList.textContent = "Could not load saved results: " + error.message; return; }
+        if (!data || !data.length) { savedList.textContent = "No marks saved for this exam and class yet."; return; }
+        savedList.innerHTML = data.map((r) => `<div class="attempt-item"><div><strong>${NC.escape(r.profiles?.full_name || "Student")} · ${NC.escape(r.subject)}</strong><small>${NC.escape(r.profiles?.student_id || "")} · ${r.exam_date || "No exam date"}</small></div><div><strong>${r.marks_obtained} / ${r.full_marks}</strong><small>${r.published ? "Published" : "Saved · Unpublished"}</small></div></div>`).join("");
+      }
+      form.elements.exam_name.addEventListener("change", refreshSaved);
+      form.elements.class_name.addEventListener("change", refreshSaved);
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const fd = new FormData(form), msg = document.getElementById("marksMessage");
+        const examName = String(fd.get("exam_name")).trim();
+        const className = String(fd.get("class_name"));
+        const studentId = String(fd.get("student_id"));
+        const subject = String(fd.get("subject"));
+        const marks = Number(fd.get("marks_obtained"));
+        const full = Number(fd.get("full_marks"));
+        if (!examName || !studentId || !subject || marks < 0 || full <= 0 || marks > full) { msg.textContent = "Check the exam, student, subject and marks. Marks cannot exceed full marks."; return; }
+        msg.textContent = "Saving…";
+        const { error } = await window.sb.from("academic_marks").upsert({
+          exam_name: examName, class_name: className, subject, student_id: studentId,
+          marks_obtained: marks, full_marks: full, exam_date: fd.get("exam_date") || null,
+          published: false, entered_by: p.id,
+        }, { onConflict: "exam_name,class_name,subject,student_id" });
+        msg.textContent = error ? "Save failed: " + error.message : "Marks saved. Re-saving this student/subject updates the existing record; it does not create a duplicate.";
+        if (!error) await refreshSaved();
+      });
+      document.getElementById("publishAllMarks").addEventListener("click", async () => {
+        const key = currentKey();
+        if (!key.exam_name) { message.textContent = "Enter the exam name first."; return; }
+        if (!confirm(`Publish ALL saved subjects for ALL students in ${key.exam_name} · Class ${key.class_name}?`)) return;
+        message.textContent = "Publishing all saved results…";
+        const { data: rows, error: readError } = await window.sb.from("academic_marks").select("id").eq("exam_name", key.exam_name).eq("class_name", key.class_name);
+        if (readError) { message.textContent = "Could not check saved results: " + readError.message; return; }
+        if (!rows || !rows.length) { message.textContent = "No saved results to publish for this exam and class."; return; }
+        const { error } = await window.sb.from("academic_marks").update({ published: true }).eq("exam_name", key.exam_name).eq("class_name", key.class_name);
+        message.textContent = error ? "Publish failed: " + error.message : `Published ${rows.length} subject-result record(s) for all students in this exam and class.`;
+        if (!error) await refreshSaved();
+      });
+      await refreshSaved();
     }
     if (tab === "settings") {
       panel.innerHTML = `<div class="leaderboard-card"><h2>Website settings</h2><form id="settingsForm" class="admin-form"><label>Website URL<input name="website_url" placeholder="https://your-site.example"></label><label>Display name<input name="site_name" value="RankRise"></label><button class="button primary">Save settings</button><p id="settingsMessage" class="form-message"></p></form></div>`;

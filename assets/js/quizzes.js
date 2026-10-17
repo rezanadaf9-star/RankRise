@@ -26,10 +26,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         .order("created_at", { ascending: false }),
     );
     const now = Date.now();
-    const attempts = window.sb
-      ? await NC.rows("quiz_attempts", (q) => q.eq("student_id", p.id))
-      : [];
-    const attemptByQuiz = new Map(attempts.map((a) => [a.quiz_id, a]));
     let filtered = qs.filter(
       (q) =>
         filter === "all" ||
@@ -41,37 +37,44 @@ document.addEventListener("DOMContentLoaded", async () => {
           new Date(q.starts_at).getTime() > now),
     );
     if (filter === "completed" && window.sb) {
-      filtered = qs.filter((q) => {
-        const attempt = attemptByQuiz.get(q.id);
-        return attempt && attempt.status !== "in_progress";
-      });
+      const attempts = await NC.rows("quiz_attempts", (q) =>
+        q.eq("student_id", p.id).eq("status", "submitted"),
+      );
+      filtered = qs.filter((q) => attempts.some((a) => a.quiz_id === q.id));
     }
     if (!filtered.length) {
       list.innerHTML =
         '<div class="empty-state">No quizzes in this section yet. Check back soon.</div>';
       return;
     }
+    let attemptRows = [];
+    if (window.sb && filtered.length) {
+      const { data } = await window.sb
+        .from("quiz_attempts")
+        .select("quiz_id,status")
+        .eq("student_id", p.id);
+      attemptRows = data || [];
+    }
+    const attemptByQuiz = new Map();
+    attemptRows.forEach(a => {
+      if (!attemptByQuiz.has(a.quiz_id) || a.status === "submitted") {
+        attemptByQuiz.set(a.quiz_id, a.status);
+      }
+    });
     list.innerHTML = filtered
-      .map(
-        (q) =>
-          (() => {
-            const attempt = attemptByQuiz.get(q.id);
-            const used = attempt && attempt.status !== "in_progress";
-            const upcoming = q.starts_at && new Date(q.starts_at) > new Date();
-            const label = used ? (attempt.status === "submitted" ? "Attempted" : "Attempt used") : attempt ? "Resume →" : upcoming ? "Upcoming" : "Start →";
-            return `<article class="quiz-list-card"><div class="quiz-card-icon">✦</div><div class="quiz-card-main"><strong>${NC.escape(q.title)}</strong><p>${Number(q.question_count || 0) || "—"} questions · ${q.duration_minutes || 15} min · +${q.positive_marks ?? 1} / −${q.negative_marks ?? 0}</p><span class="status-pill">${used ? "Completed" : upcoming ? "Upcoming" : attempt ? "In progress" : "Active"}</span></div><button class="button primary compact" data-start="${q.id}" ${used || upcoming ? "disabled" : ""}>${label}</button></article>`;
-          })(),
-      )
+      .map((q) => {
+        const attemptStatus = attemptByQuiz.get(q.id);
+        const alreadyUsed = attemptStatus === "submitted" || attemptStatus === "abandoned";
+        const inProgress = attemptStatus === "in_progress";
+        const label = alreadyUsed ? "Attempted" : inProgress ? "Resume →" : "Start →";
+        return `<article class="quiz-list-card"><div class="quiz-card-icon">✦</div><div class="quiz-card-main"><strong>${NC.escape(q.title)}</strong><p>${Number(q.question_count || 0) || "—"} questions · ${q.duration_minutes || 15} min · +${q.positive_marks ?? 1} / −${q.negative_marks ?? 0}</p><span class="status-pill">${alreadyUsed ? "Completed" : inProgress ? "In progress" : q.starts_at && new Date(q.starts_at) > new Date() ? "Upcoming" : "Active"}</span></div><button class="button ${alreadyUsed ? "secondary" : "primary"} compact" data-start="${q.id}" ${alreadyUsed ? "disabled aria-disabled=\"true\"" : ""}>${label}</button></article>`;
+      })
       .join("");
-    list
-      .querySelectorAll("[data-start]")
-      .forEach((b) =>
-        b.addEventListener(
-          "click",
-          () =>
-            (location.href = `quiz.html?quiz=${encodeURIComponent(b.dataset.start)}`),
-        ),
-      );
+    list.querySelectorAll("[data-start]:not([disabled])").forEach((b) =>
+      b.addEventListener("click", () =>
+        (location.href = `quiz.html?quiz=${encodeURIComponent(b.dataset.start)}`),
+      ),
+    );
   }
   grid.querySelectorAll("[data-subject]").forEach((b) =>
     b.addEventListener("click", () => {
